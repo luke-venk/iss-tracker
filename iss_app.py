@@ -1,5 +1,6 @@
 #!/usr/local/bin/python3
 from flask import Flask, request
+import redis
 import requests
 import xmltodict
 import time
@@ -9,19 +10,25 @@ import logging
 
 # CONFIGURATION
 app = Flask(__name__)
+# rd = redis.Redis(host='127.0.0.1', port=6379, db=0)
 logging.basicConfig(level='DEBUG')
 logging.debug('App created.')
+
+
 
 # HELPER FUNCTIONS (not associated with a URL route)
 
 def get_data() -> dict:
     '''
-    Using the URL to the NASA XML data, return a dictionary
-    containing all the data for this application.
+    Loads data from local /data directory into the Redis database.
+    If there is no data, retrieve data from the ISS website and
+    load it into the database.
     
     Returns
         all_data (dict): The entire ISS dataset
     '''
+    # print(rd.keys())
+    # return
     # Send a request to get the XML data from the NASA website
     url = 'https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml'
     headers = {'accept': 'application/xml;'}
@@ -213,3 +220,4 @@ def get_now() -> str:
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
     logging.debug('App running!')
+    get_data()

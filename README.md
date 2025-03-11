@@ -1,6 +1,6 @@
-# Homework 05: The Fountains of Flask
+# ISS Tracker
 ## Description
-The purpose of this project is to use a Flask app to retrieve a large dataset related to the ISS using requests, parse the data, perform some calculations, and output some key findings to the screen for the user to read. The dataset as a whole has data related to the ISS over a span of 15 days, including the timestamp, position, and velocity of the ISS. Furthermore, we combine our Flask app with Docker containerization, ensuring our software is portable.
+The purpose of this project is to use a Flask app to output key information related to the ISS to the user. The dataset, originally from NASA, has data related to the ISS over a span of 15 days, including the timestamp, position, and velocity of the ISS; the data will be stored in a Redis NoSQL database in order to guarantee flexible and scalable storage. Finally, we combine our Flask app with Docker containerization, ensuring our software is portable.
 
 ## Program Requirements
 ### Getting the Input Data
@@ -10,6 +10,7 @@ https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K
 ### Dependencies
 To simplify working with dependencies, I containerize my application. Furthermore, I use requirements.txt to simplify dependency management within my container. My program makes use of the following libraries that are not in the Python standard library. These are all included in requirements.txt, which is copied to the container, and the libraries are recursively installed:  
 - flask
+- redis
 - requests
 - xmltodict  
 - pytest
