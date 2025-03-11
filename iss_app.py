@@ -10,38 +10,61 @@ import logging
 
 # CONFIGURATION
 app = Flask(__name__)
-# rd = redis.Redis(host='127.0.0.1', port=6379, db=0)
+rd = redis.Redis(host='redis-db', port=6379, db=0)
 logging.basicConfig(level='DEBUG')
 logging.debug('App created.')
 
 
-
 # HELPER FUNCTIONS (not associated with a URL route)
-
-def get_data() -> dict:
+def get_data() -> None:
     '''
-    Loads data from local /data directory into the Redis database.
+    Loads data from local .data directory into the Redis database.
     If there is no data, retrieve data from the ISS website and
     load it into the database.
     
     Returns
-        all_data (dict): The entire ISS dataset
+        None: simply updates the Redis database with the data
+            from online if necessary
     '''
-    # print(rd.keys())
-    # return
-    # Send a request to get the XML data from the NASA website
-    url = 'https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml'
-    headers = {'accept': 'application/xml;'}
-    response = requests.get(url, headers=headers)
-    
-    if response.status_code != 200:
-        logging.error('ERROR: Request was unsuccessful!')
-    else:
-        logging.info('Request was successful.')
+    # If database is empty
+    if len(rd.keys()) == 0:
+        # Send a request to get the XML data from the NASA website
+        url = 'https://nasa-public-data.s3.amazonaws.com/iss-coords/current/ISS_OEM/ISS.OEM_J2K_EPH.xml'
+        headers = {'accept': 'application/xml;'}
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            logging.error('ERROR: Request was unsuccessful!')
+        else:
+            logging.info('Request was successful.')
 
-    # Parse necessary data
-    all_data = xmltodict.parse(response.text)
-    return all_data
+        # Parse necessary data
+        all_data = xmltodict.parse(response.text)
+        time_zone = all_data['ndm']['oem']['body']['segment']['metadata']['TIME_SYSTEM']
+        ref_frame = all_data['ndm']['oem']['body']['segment']['metadata']['REF_FRAME']
+        object_data = all_data['ndm']['oem']['body']['segment']['metadata']['OBJECT_NAME']
+        state_vectors = all_data['ndm']['oem']['body']['segment']['data']['stateVector']
+        
+        # Store data in Redis database
+        rd.set('time-zone', time_zone)
+        rd.set('reference-frame', ref_frame)
+        rd.set('object', object_data)
+        # Use hash to store state vectors as dictionary-like objects
+        for i in range(len(state_vectors)):
+            sv = state_vectors[i]
+            sv_data = {
+                'epoch': sv['EPOCH'],
+                'x-units': sv['X']['@units'], 'x-value': sv['X']['#text'],
+                'y-units': sv['Y']['@units'], 'y-value': sv['Y']['#text'],
+                'z-units': sv['Z']['@units'], 'z-value': sv['Z']['#text'],
+                'x-dot-units': sv['X_DOT']['@units'], 'x-dot-value': sv['X_DOT']['#text'],
+                'y-dot-units': sv['Y_DOT']['@units'], 'y-dot-value': sv['Y_DOT']['#text'],
+                'z-dot-units': sv['Z_DOT']['@units'], 'z-dot-value': sv['Z_DOT']['#text'],
+            }
+            # Key will be "state-vector:" followed by its index
+            rd.hset(f'state-vector:{i}', mapping=sv_data)
+        logging.debug('Data has been written to Redis database')
+    else:
+        logging.debug('Data is already in database')
 
 def calculate_speed(state_vector: dict) -> float:
     '''
@@ -90,7 +113,6 @@ def get_time_closest_to_now(state_vectors: list) -> int:
     return closest_index
 
 # URL ROUTES
-
 @app.route('/epochs', methods=['GET'])
 def get_all_epochs() -> list[dict]:
     '''
@@ -103,9 +125,6 @@ def get_all_epochs() -> list[dict]:
         state_vectors (list[dict]): the list of epochs, adjusting
             for user-specified limit and offset as needed
     '''
-    all_data = get_data()
-    state_vectors = all_data['ndm']['oem']['body']['segment']['data']['stateVector']
-    
     # Handle query parameters
     try:
         limit = int(request.args.get('limit', 10))
@@ -132,14 +151,7 @@ def get_specific_epoch(epoch: int) -> str:
         output (str): all the information related to the state vector
     '''
     # Parse the specific state vector to be printed
-    all_data = get_data()
-    state_vectors = all_data['ndm']['oem']['body']['segment']['data']['stateVector']
-    state_vector = state_vectors[epoch]
-    
-    # Scrape miscellaenous data to be used for displaying information
-    time_zone = all_data['ndm']['oem']['body']['segment']['metadata']['TIME_SYSTEM']
-    ref_frame = all_data['ndm']['oem']['body']['segment']['metadata']['REF_FRAME']
-    object_data = all_data['ndm']['oem']['body']['segment']['metadata']['OBJECT_NAME']
+    # TODO
     
     # Deal with date and time
     time_stamp = state_vector['EPOCH']
@@ -186,9 +198,7 @@ def get_speed(epoch: int) -> str:
         output (str): the speed of the ISS
     '''
     # Get the specific state vector we want to print the speed of
-    all_data = get_data()
-    state_vectors = all_data['ndm']['oem']['body']['segment']['data']['stateVector']
-    state_vector = state_vectors[epoch]
+    # TODO
     
     speed = calculate_speed(state_vector)  # Use helper function to find speed
     speed_units = state_vector['X_DOT']['@units']  # Units for speed
@@ -205,8 +215,7 @@ def get_now() -> str:
     Returns:
         output (str): The state vector and speed for now
     '''
-    all_data = get_data()
-    state_vectors = all_data['ndm']['oem']['body']['segment']['data']['stateVector']
+    # TODO
     closest_time_index = get_time_closest_to_now(state_vectors)
     logging.debug(f'The index of the epoch with the closest time is {closest_time_index}.')
     sv_output = get_specific_epoch(closest_time_index)
