@@ -14,7 +14,6 @@ rd = redis.Redis(host='redis-db', port=6379, db=0)
 logging.basicConfig(level='DEBUG')
 logging.debug('App created.')
 
-
 # HELPER FUNCTIONS (not associated with a URL route)
 def get_data() -> None:
     '''
@@ -48,6 +47,7 @@ def get_data() -> None:
         rd.set('time-zone', time_zone)
         rd.set('reference-frame', ref_frame)
         rd.set('object', object_data)
+        rd.set('num-svs', len(state_vectors))
         # Use hash to store state vectors as dictionary-like objects
         for i in range(len(state_vectors)):
             sv = state_vectors[i]
@@ -66,42 +66,43 @@ def get_data() -> None:
     else:
         logging.debug('Data is already in database')
 
-def calculate_speed(state_vector: dict) -> float:
+def calculate_speed(epoch: int) -> float:
     '''
-    Given a state vector, find three Cartesian velocity components
+    Given a epoch index, find three Cartesian velocity components
     Use these quantities to calculate the speed, which is equivalent
     to the magnitude of the three vector components.
     
     Arguments:
-        state_vector (dict): the current state vector to evaluate
+        epoch (int): the index of the epoch to evaluate
     Returns:
         speed (float): the speed of the object, in km/s
     '''
-    x_dot = float(state_vector['X_DOT']['#text'])
-    y_dot = float(state_vector['Y_DOT']['#text'])
-    z_dot = float(state_vector['Z_DOT']['#text'])
+    sv_key = f'state-vector:{epoch}'
+    x_dot = float(rd.hget(sv_key, 'x-dot-value'))
+    y_dot = float(rd.hget(sv_key, 'y-dot-value'))
+    z_dot = float(rd.hget(sv_key, 'z-dot-value'))
     logging.debug('All velocity components for speed were found.')
     speed = np.sqrt(x_dot ** 2 + y_dot ** 2 + z_dot ** 2)
     return speed
 
-def get_time_closest_to_now(state_vectors: list) -> int:
+def get_time_closest_to_now() -> int:
     '''
-    Given the current time, and the list of state vectors, find the index
-    of the state vector with the time closest to the current time (i.e.,
-    the time at which the program is executed).
+    Find the index of the state vector in the database with 
+    the time closest to the current time (i.e., the time at
+    which the program is executed).
     
-    Arguments:
-        state_vectors (list): a list of all the state_vectors
     Returns:
         current_index (int): index corrresponding to the state vector
-        with the time closest to now
+            with the time closest to now
     '''
     closest_index = -1
     closest_time = float('inf')   # The closest time to now (seconds)
     # Get current UTC time as a Unix timestamp (seconds since Unix epoch)
     time_now = time.mktime(time.gmtime())  
-    for i in range(len(state_vectors)):
-        sv_time_stamp = state_vectors[i]['EPOCH']
+    
+    count = int(rd.get('num-svs'))
+    for i in range(count):
+        sv_time_stamp = rd.hget(f'state-vector:{i}', 'epoch').decode('utf-8')
         # Remove the unecessary .XXXZ from the timestamp
         clean_time_stamp = sv_time_stamp.split('.')[0]
         # Parse time-stamp into a readable format
@@ -122,8 +123,8 @@ def get_all_epochs() -> list[dict]:
         limit (int): maximum number of epochs to be returned
         offset (int): offset at which to begin returning epochs
     Returns:
-        state_vectors (list[dict]): the list of epochs, adjusting
-            for user-specified limit and offset as needed
+        output_str: the string describing the of list of epochs, 
+            adjusting for user-specified limit and offset as needed
     '''
     # Handle query parameters
     try:
@@ -138,7 +139,16 @@ def get_all_epochs() -> list[dict]:
         return 'ERROR: Offset parameter must be an integer.\n'
 
     # Use query parameters to return a subset of the data
-    return state_vectors[offset: offset + limit]
+    count = int(rd.get('num-svs'))
+    if offset + limit >= count:
+        logging.error('ERROR: Out of bounds')
+        return 'You entered an offset and limit that goes out of bounds.\n'
+    else:
+        output_str = f'Here is a list of {limit} epochs, starting from data entry {offset + 1}.\n\n'
+        for i in range(offset, offset + limit):
+            output_str += f'Epoch #{i + 1}\n'
+            output_str += get_specific_epoch(i) + '\n'
+        return output_str
 
 @app.route('/epochs/<int:epoch>', methods=['GET'])
 def get_specific_epoch(epoch: int) -> str:
@@ -150,11 +160,9 @@ def get_specific_epoch(epoch: int) -> str:
     Returns:
         output (str): all the information related to the state vector
     '''
-    # Parse the specific state vector to be printed
-    # TODO
-    
     # Deal with date and time
-    time_stamp = state_vector['EPOCH']
+    sv_key = f'state-vector:{epoch}'
+    time_stamp = rd.hget(sv_key, 'epoch').decode('utf-8')
     clean_time_stamp = time_stamp.split('.')[0]
     format_ts = time.strptime(clean_time_stamp, '%Y-%jT%H:%M:%S')
     
@@ -163,19 +171,28 @@ def get_specific_epoch(epoch: int) -> str:
     sv_time = f'{format_ts.tm_hour:02d}:{format_ts.tm_min:02d}:{format_ts.tm_sec:02d}'
     
     # Handle state vector metrics
-    x_units, x_quantity = state_vector['X']['@units'], state_vector['X']['#text']
-    y_units, y_quantity = state_vector['Y']['@units'], state_vector['Y']['#text']
-    z_units, z_quantity = state_vector['Z']['@units'], state_vector['Z']['#text']
-    xdot_units, xdot_quantity = state_vector['X_DOT']['@units'], state_vector['X_DOT']['#text']
-    ydot_units, ydot_quantity = state_vector['Y_DOT']['@units'], state_vector['Y_DOT']['#text']
-    zdot_units, zdot_quantity = state_vector['Z_DOT']['@units'], state_vector['Z_DOT']['#text']
+    x_units = rd.hget(sv_key, 'x-units').decode('utf-8')
+    x_quantity = rd.hget(sv_key, 'x-value').decode('utf-8')
+    y_units = rd.hget(sv_key, 'y-units').decode('utf-8')
+    y_quantity = rd.hget(sv_key, 'y-value').decode('utf-8')
+    z_units = rd.hget(sv_key, 'z-units').decode('utf-8')
+    z_quantity = rd.hget(sv_key, 'z-value').decode('utf-8')
+    xdot_units = rd.hget(sv_key, 'x-dot-units').decode('utf-8')
+    xdot_quantity = rd.hget(sv_key, 'x-dot-value').decode('utf-8')
+    ydot_units = rd.hget(sv_key, 'y-dot-units').decode('utf-8')
+    ydot_quantity = rd.hget(sv_key, 'y-dot-value').decode('utf-8')
+    zdot_units = rd.hget(sv_key, 'z-dot-units').decode('utf-8')
+    zdot_quantity = rd.hget(sv_key, 'z-dot-value').decode('utf-8')
+    
+    object_data = rd.get('object').decode('utf-8')
+    ref_frame = rd.get('reference-frame').decode('utf-8')
     
     logging.info('Successfully parsed the entire epoch data.')
     
     # Assemble output string
     output = ''
     output += f'The date is {sv_date}.\n'
-    output += f'The time is {sv_time} ({time_zone}).\n'
+    output += f'The time is {sv_time} ({rd.get('time-zone').decode('utf-8')}).\n'
     output += f'The {object_data} position is (compared to frame {ref_frame}): \n'
     output += f'\tX: {x_quantity} {x_units}.\n'
     output += f'\tY: {y_quantity} {y_units}.\n'
@@ -198,10 +215,8 @@ def get_speed(epoch: int) -> str:
         output (str): the speed of the ISS
     '''
     # Get the specific state vector we want to print the speed of
-    # TODO
-    
-    speed = calculate_speed(state_vector)  # Use helper function to find speed
-    speed_units = state_vector['X_DOT']['@units']  # Units for speed
+    speed = calculate_speed(epoch)  # Use helper function to find speed
+    speed_units = rd.hget(f'state-vector:{epoch}', 'x-dot-units').decode('utf-8')  # Units for speed
     
     output = f'The instantaneous speed of epoch {epoch} is {speed:.5f} {speed_units}.\n'
     return output
@@ -216,7 +231,7 @@ def get_now() -> str:
         output (str): The state vector and speed for now
     '''
     # TODO
-    closest_time_index = get_time_closest_to_now(state_vectors)
+    closest_time_index = get_time_closest_to_now()
     logging.debug(f'The index of the epoch with the closest time is {closest_time_index}.')
     sv_output = get_specific_epoch(closest_time_index)
     speed_output = get_speed(closest_time_index)
@@ -227,6 +242,6 @@ def get_now() -> str:
     
 
 if __name__ == '__main__':
+    get_data()
     app.run(debug=True, host='0.0.0.0')
     logging.debug('App running!')
-    get_data()
