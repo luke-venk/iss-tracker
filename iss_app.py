@@ -3,9 +3,12 @@ from flask import Flask, request
 import redis
 import requests
 import xmltodict
-import time
 import numpy as np
+import time
 import logging
+from astropy import coordinates, units
+from astropy.time import Time
+from geopy.geocoders import Nominatim
 
 
 # CONFIGURATION
@@ -112,6 +115,54 @@ def get_time_closest_to_now() -> int:
             closest_time = abs(sv_time - time_now)
             closest_index = i
     return closest_index
+
+def get_geodetic(epoch: int) -> tuple[float, float, float]:
+    '''
+    Given the index of the epoch to evaluate, find the
+    geodetic coordinates of the ISS corresponding to
+    that epoch.
+    
+    Argument:
+        epoch (int): index of the epoch
+    Returns:
+        latitude (float): latitude of the ISS for that epoch
+        longitude (float): longitude of the ISS for that epoch
+        altitude (float): altitude of the ISS for that epoch
+    '''
+    sv_key = f'state-vector:{epoch}'
+    
+    # EME2000 coordinates
+    x = float(rd.hget(sv_key, 'x-value'))
+    y = float(rd.hget(sv_key, 'y-value'))
+    z = float(rd.hget(sv_key, 'z-value'))
+    
+    # Handle time stamp of epoch
+    strip_time_str = rd.hget(sv_key, 'epoch').decode('utf-8')
+    time_stamp = time.strftime('%Y-%m-%d %H:%m:%S', time.strptime(strip_time_str[:-5], '%Y-%jT%H:%M:%S'))
+    
+    cartesian = coordinates.CartesianRepresentation([x, y, z], unit=units.km)
+    gcrs = coordinates.GCRS(cartesian, obstime=time_stamp)  # geocentric celestial reference system
+    itrs = gcrs.transform_to(coordinates.ITRS(obstime=time_stamp))  # international terrestrial reference system
+    loc = coordinates.EarthLocation(*itrs.cartesian.xyz)
+    
+    return loc.lat.value, loc.lon.value, loc.height.value
+    
+def get_geoposition(epoch: int) -> float:
+    '''
+    Given the index of the epoch to evaluate, find the
+    geoposition of the ISS corresponding to that epoch.
+    
+    Argument:
+        epoch (int): index of the epoch
+    Returns:
+        geoposition (float): geoposition of the ISS for that epoch
+    '''
+    geocoder = Nominatim(user_agent='iss_tracker')
+    # Use helper function to get geodetic coordinates
+    lat, lon, _ = get_geodetic(epoch)
+    geoloc = geocoder.reverse((lat, lon), zoom=15, language='en')
+    return geoloc
+    
 
 # URL ROUTES
 @app.route('/epochs', methods=['GET'])
@@ -220,6 +271,21 @@ def get_speed(epoch: int) -> str:
     
     output = f'The instantaneous speed of epoch {epoch} is {speed:.5f} {speed_units}.\n'
     return output
+
+@app.route('/epochs/<int:epoch>/location')
+def get_location(epoch: int) -> str:
+    '''
+    Given the index of the epoch to evaluate, find its
+    geodetic coordinates and geoposition.
+    
+    Argument:
+        epoch (int): index of the epoch
+    Returns:
+        output_str (str): An output string that returns
+            the latitude, longitude, altitude, and geoposition
+    '''
+    geop = get_geoposition(epoch)
+    return geop
 
 @app.route('/now', methods=['GET'])
 def get_now() -> str:
