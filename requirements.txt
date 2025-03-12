@@ -2,5 +2,7 @@ flask
 redis
 requests
 xmltodict
-pytest
+astropy
+geopy
 numpy
+pytest

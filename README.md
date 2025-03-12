@@ -13,8 +13,10 @@ To simplify working with dependencies, I containerize my application. Furthermor
 - redis
 - requests
 - xmltodict  
-- pytest
+- astropy
+- geopy
 - numpy
+- pytest
 
 ## Building the Docker Image
 In this repository, I include the Dockerfile as well as all of the source code. First, in your terminal, navigate into the homework05 directory. Then, to build the image, run the following:  
