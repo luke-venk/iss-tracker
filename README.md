@@ -19,27 +19,17 @@ To simplify working with dependencies, I containerize my application. Furthermor
 - pytest
 
 ## Building the Docker Image
-In this repository, I include the Dockerfile as well as all of the source code. First, in your terminal, navigate into the homework05 directory. Then, to build the image, run the following:  
-```docker build -t <username>/hw5:1.0 .```   
-
-Make sure you specify your Docker Hub username in *<username>*. This might take a few moments, as it retrieves both my image and the base image (python 3.12), as well as downloading all dependencies.  
-
-Alternatively, you could also pull the image from Docker Hub with the following, since my image is public:  
-```docker pull lukevenk1/hw5:1.0```
-
-## Running the Application
-Once you have built the Docker image, you can run either the main script or the unit tests.  
-
-### Run the main script
-Before running, you need to ensure port 5000 on your host machine is not already allocated. If there is another container running on that port, remove that container. You can remove all containers on your host machine with the following command:  
+Before running, you need to ensure ports 5000 and 6379 on your host machine is not already allocated. If there is another container running on that port, remove that container. You can remove all containers on your host machine with the following command:  
 ```docker rm -f `docker ps -aq` ```
 
-To run the main script, type the following into the terminal:  
-```docker run --name "iss_app" -d -p 5000:5000 <username>/hw5:1.0```  
-We run the container in the background using the "-d" option, so you can proceed to access various URL routes while the Flask app runs. Furthermore, using the "-p" option, we map port 5000 on the Jetstream VM to port 5000 in the container.
+In this repository, I include the docker-compose.yml file and Dockerfile. First, in your terminal, navigate into the iss-tracker directory. Then, to build the image, run the following:  
+```docker compose up --build```   
+
+## Running the Application
+Once you have built the Docker image, you can run the containers and either use the routes to query data, or run the unit tests. By default, Dockerfile specifies the default command to run the Flask app. Thus, there is no need to manually run the app.  
 
 ### Accessing URL routes
-To retrieve useful information from the Flask app, we use curl to access routes. Here are the commands you should use. Keep in mind that these requests might take a few seconds.  
+To retrieve useful information from the Flask app, we use curl to access routes. Here are the commands you should use. Keep in mind that these requests might take a few seconds. Be sure to only pass in positive integers as parameters.  
 
 To return a list of the epochs, run the following:  
 ```curl localhost:5000/epochs```  
@@ -54,17 +44,19 @@ To return the state vectors for a specific epoch index, run the following:
 To return the instantaneous speed for a specific epoch in the dataset, run the following:  
 ```curl localhost:5000/epochs/<int>/speed```
 
-Finally, to return the state vector and speed for the epoch in the dataset closest to the time of execution, run the following:  
+To return the geodetic coordinates and geolocation for a specific epoch in the dataset, run the following:  
+```curl localhost:5000/epochs/<int>/location```
+
+Finally, to return the state vector, speed, and location for the epoch in the dataset closest to the time of execution, run the following:  
 ```curl localhost:5000/now```
 
 ### Run the unit tests
 If you wish to run the unit tests instead, first, ensure that you ran the main script with the command above. If the Flask app is not actively running, these tests cannot work. Then, type the following into the terminal:  
-```docker exec -it iss_app pytest /app```  
-This will execute pytest inside the container you built (named "iss_app"), on the app directory where the source code resides. Specifying the "-it" option makes the container interactive so you can see the formatted output. Running this command may take up to a minute, since each integration test makes its own request from the Flask app.
+```docker ps -a```  
+Find the container name that corresponds to the Flask app. Then type the following:  
+```docker exec -it <container_id_name> pytest /app```  
+This will execute pytest inside the container for the Flask app, on the app directory where the source code resides. Specifying the "-it" option makes the container interactive so you can see the formatted output. Running this command may take up to a minute, since each integration test makes its own request from the Flask app.
 
 ### Cleanup
-When you are done using the app, take care to stop the container from running on your localhost:  
-```docker stop iss_app ```
-
-If you'd like, you can also remove the container with the following:  
-```docker rm -f iss_app ```
+When you are done using the app, take care to stop the Flask and Redis containers from running on your localhost:  
+```docker compose down ```
