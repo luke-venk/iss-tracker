@@ -284,8 +284,20 @@ def get_location(epoch: int) -> str:
         output_str (str): An output string that returns
             the latitude, longitude, altitude, and geoposition
     '''
+    lat, lon, alt = get_geodetic(epoch)
     geop = get_geoposition(epoch)
-    return geop
+    
+    lat_str = f'{lat:.3f}'
+    lon_str = f'{lon:.3f}'
+    alt_str = f'{alt:.3f}'
+    obj_str = rd.get('object').decode('utf-8')
+    units_str = rd.hget(f'state-vector:{epoch}', 'x-units').decode('utf-8')  # Units for position
+    output_str = f'The geodetic coordinates of the {obj_str} are ({lat_str}, {lon_str}) at an altitude of {alt_str} {units_str}.\n'
+    if geop:
+        output_str += f'The geoposition of the {obj_str} is {geop}.\n'
+    else: 
+        output_str += f'The {obj_str} is not above an identifiable geoposition.\n'
+    return output_str
 
 @app.route('/now', methods=['GET'])
 def get_now() -> str:
