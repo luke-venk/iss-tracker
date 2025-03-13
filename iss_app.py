@@ -308,14 +308,15 @@ def get_now() -> str:
     Returns:
         output (str): The state vector and speed for now
     '''
-    # TODO
     closest_time_index = get_time_closest_to_now()
     logging.debug(f'The index of the epoch with the closest time is {closest_time_index}.')
     sv_output = get_specific_epoch(closest_time_index)
     speed_output = get_speed(closest_time_index)
+    geo_output = get_location(closest_time_index)
     output = f'Here is the information for the state vector closest to now.\n\n'
-    output += f'{sv_output}\n\n'
-    output += f'{speed_output}'
+    output += f'{sv_output}\n'
+    output += f'{speed_output}\n'
+    output += f'{geo_output}\n'
     return output
     
 
