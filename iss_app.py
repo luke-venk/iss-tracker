@@ -84,6 +84,8 @@ def calculate_speed(epoch: int) -> float:
     x_dot = float(rd.hget(sv_key, 'x-dot-value'))
     y_dot = float(rd.hget(sv_key, 'y-dot-value'))
     z_dot = float(rd.hget(sv_key, 'z-dot-value'))
+    if x_dot is None:
+        return None
     logging.debug('All velocity components for speed were found.')
     speed = np.sqrt(x_dot ** 2 + y_dot ** 2 + z_dot ** 2)
     return speed
@@ -135,6 +137,9 @@ def get_geodetic(epoch: int) -> tuple[float, float, float]:
     x = float(rd.hget(sv_key, 'x-value'))
     y = float(rd.hget(sv_key, 'y-value'))
     z = float(rd.hget(sv_key, 'z-value'))
+    
+    if x is None:
+        return None, None, None
     
     # Handle time stamp of epoch
     strip_time_str = rd.hget(sv_key, 'epoch').decode('utf-8')
@@ -193,7 +198,7 @@ def get_all_epochs() -> list[dict]:
     count = int(rd.get('num-svs'))
     if offset + limit >= count:
         logging.error('ERROR: Out of bounds')
-        return 'You entered an offset and limit that goes out of bounds.\n'
+        return 'Error: You entered an offset and limit that goes out of bounds. Please try again.\n'
     else:
         output_str = f'Here is a list of {limit} epochs, starting from data entry {offset + 1}.\n\n'
         for i in range(offset, offset + limit):
@@ -211,6 +216,11 @@ def get_specific_epoch(epoch: int) -> str:
     Returns:
         output (str): all the information related to the state vector
     '''
+    # Index checking
+    count = int(rd.get('num-svs'))
+    if epoch < 0 or epoch >= count:
+        return 'Error: Invalid input for epoch index. Please try again.\n'
+    
     # Deal with date and time
     sv_key = f'state-vector:{epoch}'
     time_stamp = rd.hget(sv_key, 'epoch').decode('utf-8')
@@ -265,6 +275,11 @@ def get_speed(epoch: int) -> str:
     Returns:
         output (str): the speed of the ISS
     '''
+    # Index checking
+    count = int(rd.get('num-svs'))
+    if epoch < 0 or epoch >= count:
+        return 'Error: Invalid input for epoch index. Please try again.\n'
+    
     # Get the specific state vector we want to print the speed of
     speed = calculate_speed(epoch)  # Use helper function to find speed
     speed_units = rd.hget(f'state-vector:{epoch}', 'x-dot-units').decode('utf-8')  # Units for speed
@@ -284,6 +299,11 @@ def get_location(epoch: int) -> str:
         output_str (str): An output string that returns
             the latitude, longitude, altitude, and geoposition
     '''
+    # Index checking
+    count = int(rd.get('num-svs'))
+    if epoch < 0 or epoch >= count:
+        return 'Error: Invalid input for epoch index. Please try again.\n'
+    
     lat, lon, alt = get_geodetic(epoch)
     geop = get_geoposition(epoch)
     
