@@ -53,8 +53,8 @@ Finally, to return the state vector, speed, and location for the epoch in the da
 ### Run the tests
 If you wish to run the unit tests and integration tests instead, first, ensure that you ran the main script with the command above. If the Flask app is not actively running, these tests cannot work. Then, type the following into the terminal:  
 ```docker ps -a```  
-Find the container name that corresponds to the Flask app. Then type the following:  
-```docker exec -it <container_id_name> pytest /app```  
+Find the container name that corresponds to the Flask app. In this case, the Flask app name should be iss-tracker-flask-app-1. Then type the following:  
+```docker exec -it iss-tracker-flask-app-1 pytest /app```  
 This will execute pytest inside the container for the Flask app, on the app directory where the source code resides. Specifying the "-it" option makes the container interactive so you can see the formatted output. Running this command may take up to a minute, since each integration test makes its own request from the Flask app.
 
 ### Cleanup
