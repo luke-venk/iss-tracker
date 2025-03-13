@@ -50,8 +50,8 @@ To return the geodetic coordinates and geolocation for a specific epoch in the d
 Finally, to return the state vector, speed, and location for the epoch in the dataset closest to the time of execution, run the following:  
 ```curl localhost:5000/now```
 
-### Run the unit tests
-If you wish to run the unit tests instead, first, ensure that you ran the main script with the command above. If the Flask app is not actively running, these tests cannot work. Then, type the following into the terminal:  
+### Run the tests
+If you wish to run the unit tests and integration tests instead, first, ensure that you ran the main script with the command above. If the Flask app is not actively running, these tests cannot work. Then, type the following into the terminal:  
 ```docker ps -a```  
 Find the container name that corresponds to the Flask app. Then type the following:  
 ```docker exec -it <container_id_name> pytest /app```  

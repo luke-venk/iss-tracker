@@ -171,7 +171,7 @@ def get_geoposition(epoch: int) -> float:
 
 # URL ROUTES
 @app.route('/epochs', methods=['GET'])
-def get_all_epochs() -> list[dict]:
+def get_all_epochs() -> str:
     '''
     Uses the dataset to return a list of the epochs to the user.
     
