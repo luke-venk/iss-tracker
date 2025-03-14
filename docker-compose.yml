@@ -16,4 +16,4 @@ services:
       - redis-db
     image: lukevenk1/iss_tracker:1.0
     ports:
-      - 5001:5000
+      - 5000:5000
